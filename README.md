@@ -1,2 +1,2 @@
 # brainyquote.com-quotes-scraper
- Scraping quotes from brainyquote.com
+ Scraping quotes from brainyquote.com by author.
