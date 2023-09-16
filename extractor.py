@@ -1,4 +1,3 @@
-# Import necessary libraries
 import requests
 from lxml import html
 import json
@@ -8,8 +7,8 @@ from lxml.html.clean import unicode
 
 def extract(author: str, chars_limit):
     # Define empty lists to store extracted data
-    quote_approve = list()
-    author_approve = list()
+    quotes = list()
+    authors = list()
 
     author_for_url = author.replace(" ", "-")
     author_for_url += "-quotes"
@@ -17,18 +16,32 @@ def extract(author: str, chars_limit):
     count_skipped = 0       # Skipped quotes because of chars_limit
     print(f"Scraping \"{author}\" from BrainyQuote.com ...")
     # Define URL to fetch data from
-    url = f"https://www.brainyquote.com/authors/{author_for_url}"
+    base_url = f"https://www.brainyquote.com/authors"
 
-    pages = get_number_of_pages(url)
+    pages = get_number_of_pages(base_url, author_for_url)
 
     print(pages)
 
     for page in range(1, pages+1, 1):
         count_scraped_page = 0
         print(f"\nScraping quotes by {author}, Page: {page}/{pages}...")
-        tmp_url: str = f'{url}_{page}'
+        tmp_url: str = f'{author_for_url}_{page}'
         # Fetch the HTML content from the URL
-        response = requests.get(tmp_url)
+        headers = {
+            'authority': 'www.brainyquote.com',
+            'accept': 'application/json, text/javascript, */*; q=0.01',
+            'accept-language': 'en,en-US;q=0.9,he-IL;q=0.8,he;q=0.7',
+            'referer': f'{base_url}/{tmp_url}',
+            'sec-ch-ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+            'x-requested-with': 'XMLHttpRequest',
+        }
+        response = requests.get(f'{base_url}/{tmp_url}', headers=headers)
         html_str = response.text
 
         # Convert HTML content to lxml tree object
@@ -39,18 +52,18 @@ def extract(author: str, chars_limit):
         for div_element in div_elements:
             count_scraped_page += 1
             p_text = ''.join(div_element.xpath('.//a//div//text()')).replace('\t', '').replace('\n', '')
-            quote_approve.append(p_text)
-            author_approve.append(author)
+            quotes.append(p_text)
+            authors.append(author)
 
         print(f"Scraped {count_scraped_page} quotes by {author} from Page {page}/{pages}")
 
-    # Remove verses that are too long (if limit is not -1)
+    # Remove quotes that are too long (if limit is not -1)
     if chars_limit != -1:
-        for i in range(len(quote_approve)-1, -1, -1):
-            if len(quote_approve[i]) > chars_limit:
+        for i in range(len(quotes)-1, -1, -1):
+            if len(quotes[i]) > chars_limit:
                 count_skipped += 1
-                del quote_approve[i]
-                del author_approve[i]
+                del quotes[i]
+                del authors[i]
 
     # Write extracted data to a JSON file
     try:
@@ -58,22 +71,40 @@ def extract(author: str, chars_limit):
     except NameError:
         to_unicode = str
 
-    with io.open(f'{author}_data.json', 'w', encoding='utf8') as outfile:
-        str_ = json.dumps({'quotes': quote_approve, 'authors': author_approve}, ensure_ascii=False, indent=4)
-        outfile.write(to_unicode(str_))
+    data = []
+    for i in range(0, len(quotes)):
+        quote_dict: dict
+        quote_dict['quote'] = quotes[i]
+        quote_dict['author'] = authors[i]
+        data.append(quote_dict)
 
-    # Read data from JSON file and compare with original data
-    with open(f'{author}_data.json', 'r', encoding='utf-8') as data_file:
-        data_loaded = json.load(data_file)
+    with io.open(f'{author}_data.json', 'w', encoding='utf8') as outfile:
+        str_ = json.dumps(data, ensure_ascii=False, indent=4)
+        outfile.write(to_unicode(str_))
 
     if chars_limit != -1:
         print(f"skipped {count_skipped} quotes that exceeded {chars_limit} chars.")
-    return outfile.name, len(quote_approve)
+    return outfile.name, len(quotes)
 
 
-def get_number_of_pages(url):
+def get_number_of_pages(base_url, author_for_url):
     # Fetch the HTML content from the URL
-    response = requests.get(url)
+    headers = {
+        'authority': 'www.brainyquote.com',
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'en,en-US;q=0.9,he-IL;q=0.8,he;q=0.7',
+        'referer': f'{base_url}/{author_for_url}',
+        'sec-ch-ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest',
+    }
+
+    response = requests.get(f'{base_url}/{author_for_url}', headers=headers)
     html_str = response.text
 
     # Convert HTML content to lxml tree object
